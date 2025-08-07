@@ -413,6 +413,7 @@ class DistillationBox(object):
         teacher_outputs, extracted_teacher_io_dict =\
             self.get_teacher_output(sample_batch=sample_batch, targets=targets, supp_dict=supp_dict, **kwargs)
         student_outputs = self.student_forward_proc(self.student_model, sample_batch, targets, supp_dict, **kwargs)
+        
         extracted_student_io_dict = extract_io_dict(self.student_io_dict, self.device)
         extracted_student_io_dict[SELF_MODULE_PATH]['output'] = student_outputs
         if isinstance(self.student_model, AuxiliaryModelWrapper):
@@ -422,7 +423,13 @@ class DistillationBox(object):
         update_io_dict(extracted_student_io_dict, extract_io_dict(self.student_io_dict, self.device))
         io_dict = {'teacher': extracted_teacher_io_dict, 'student': extracted_student_io_dict}
         total_loss = self.criterion(io_dict, model_loss_dict, targets)
-        return total_loss
+  
+        #return total_loss
+        #print("extracted_student_io_dict", list(extracted_student_io_dict.keys()))
+        output_loss_dict = {(name+'_loss' if 'loss' not in name else name): val \
+                             for name, val in extracted_student_io_dict.items() if isinstance(val, float)}
+        output_loss_dict.update({'total_loss': total_loss})
+        return output_loss_dict
 
     def post_forward_process(self, *args, **kwargs):
         """

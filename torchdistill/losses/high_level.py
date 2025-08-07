@@ -79,7 +79,10 @@ class WeightedSumLoss(AbstractLoss):
         student_io_dict = io_dict['student']
         teacher_io_dict = io_dict['teacher']
         for loss_name, (criterion, factor) in self.term_dict.items():
-            loss_dict[loss_name] = factor * criterion(student_io_dict, teacher_io_dict, targets)
+            loss = criterion(student_io_dict, teacher_io_dict, targets)
+            loss_dict[loss_name] = factor * loss
+            #student_io_dict[loss_name] = loss.item()
+            io_dict['student'][loss_name] = loss.item()
 
         sub_total_loss = sum(loss for loss in loss_dict.values()) if len(loss_dict) > 0 else 0
         if self.model_loss_factor is None or \

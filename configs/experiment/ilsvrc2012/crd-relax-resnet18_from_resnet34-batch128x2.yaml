@@ -73,20 +73,26 @@ models:
       num_classes: 1000
     _experiment: &student_experiment !join [*dataset_name, '-', *student_model_key, '_from_', *teacher_model_key]
     src_ckpt:
-    dst_ckpt: !join ['./resource/ckpt/ilsvrc2012/at/', *student_experiment, '.pt']
+    dst_ckpt: !join ['./resource/ckpt/ilsvrc2012/crd/', *student_experiment, '.pt']
 
 train:
   log_freq: 1000
   num_epochs: 100
   train_data_loader:
     dataset_id: *imagenet_train
+    dataset_wrapper:
+      key: 'CRDDatasetWrapper'
+      kwargs:
+        num_negative_samples: &num_negative_samples 16384
+        mode: 'relax'
+        ratio: 1.0
     sampler:
       class_or_func: !import_get
         key: 'torch.utils.data.RandomSampler'
       kwargs:
     kwargs:
-      batch_size: 256
-      num_workers: 16
+      batch_size: 128 #256 #85
+      num_workers: 8 #16 #8 
       pin_memory: True
       drop_last: False
     cache_output:
@@ -97,28 +103,47 @@ train:
         key: 'torch.utils.data.SequentialSampler'
       kwargs:
     kwargs:
-      batch_size: 256
-      num_workers: 16
+      batch_size: 128
+      num_workers: 8 #16 #8 
       pin_memory: True
       drop_last: False
   teacher:
-    forward_proc: 'forward_batch_only'
+    forward_proc: 'forward_batch_supp_dict'
     sequential: []
+    auxiliary_model_wrapper:
+      key: 'Linear4CRD'
+      kwargs:
+        input_module_path: 'model.avgpool'
+        linear_kwargs:
+          in_features: 512
+          out_features: 128
+          bias: True
+        power: 2
     forward_hook:
       input: []
-      output: ['layer3', 'layer4']
-    wrapper: 'DataParallel'
-    requires_grad: False
+      output: ['model.avgpool', 'normalizer']
+    wrapper:
+    requires_grad: True
+    frozen_modules: ['model']
   student:
-    forward_proc: 'forward_batch_only'
+    forward_proc: 'forward_batch_supp_dict'
     adaptations:
     sequential: []
-    frozen_modules: []
+    auxiliary_model_wrapper:
+      key: 'Linear4CRD'
+      kwargs:
+        input_module_path: 'model.avgpool'
+        linear_kwargs:
+          in_features: 512
+          out_features: &feature_dim 128
+          bias: True
+        power: 2
     forward_hook:
-      input: []
-      output: ['layer3', 'layer4']
-    wrapper: 'DistributedDataParallel'
+      input: ['empty']
+      output: ['model.avgpool', 'normalizer']
+    wrapper:
     requires_grad: True
+    frozen_modules: []
   optimizer:
     key: 'SGD'
     kwargs:
@@ -149,29 +174,21 @@ train:
               target:
                 uses_label: True
           weight: 1.0
-        at_loss:
+        crd:
           criterion:
-            key: 'ATLoss'
+            key: 'CRDLoss'
             kwargs:
-              at_pairs:
-                pair1:
-                  teacher:
-                    io: 'output'
-                    path: 'layer3'
-                  student:
-                    io: 'output'
-                    path: 'layer3'
-                  weight: 1
-                pair2:
-                  teacher:
-                    io: 'output'
-                    path: 'layer4'
-                  student:
-                    io: 'output'
-                    path: 'layer4'
-                  weight: 1
-              mode: 'code'
-          weight: 1000.0
+              teacher_norm_module_path: 'normalizer'
+              student_norm_module_path: 'normalizer'
+              student_empty_module_path: 'empty'
+              input_size: *feature_dim
+              output_size: &num_samples 1281167
+              num_negative_samples: *num_negative_samples
+              num_samples: *num_samples
+              temperature: 0.07
+              momentum: 0.5
+              eps: 0.0000001
+          weight: 0.8
 
 test:
   test_data_loader:
@@ -179,6 +196,6 @@ test:
     sampler: *val_sampler
     kwargs:
       batch_size: 1
-      num_workers: 16
+      num_workers: 8  #16
       pin_memory: True
       drop_last: False

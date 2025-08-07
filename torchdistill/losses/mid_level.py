@@ -894,9 +894,9 @@ class CRDLoss(nn.Module):
             large = larger.pop()
 
             self.alias[small] = large
-            self.probs[large] = (self.probs[large] - 1.0) + self.probs[small]
+            self.probs[large] = (self.probs[large] - 1.0) + self.probs[small] # QS: Should not minute one?; Making total sum of prob unequal to one
 
-            if self.prob[large] < 1.0:
+            if self.probs[large] < 1.0:
                 smaller.append(large)
             else:
                 larger.append(large)
@@ -924,7 +924,7 @@ class CRDLoss(nn.Module):
     def draw(self, n):
         # Draw n samples from multinomial
         k = self.alias.size(0)
-        kk = torch.zeros(n, dtype=torch.long, device=self.prob.device).random_(0, k)
+        kk = torch.zeros(n, dtype=torch.long, device=self.probs.device).random_(0, k)
         prob = self.probs.index_select(0, kk)
         alias = self.alias.index_select(0, kk)
         # b is whether a random number is greater than q
@@ -1022,8 +1022,8 @@ class CRDLoss(nn.Module):
             contrast_idx = contrast_idx.to(device)
 
         if device != self.probs.device:
-            self.probs.to(device)
-            self.alias.to(device)
+            self.probs = self.probs.to(device)
+            self.alias = self.alias.to(device)
             self.to(device)
 
         out_s, out_t = self.contrast_memory(student_linear_outputs, teacher_linear_outputs, pos_idx, contrast_idx)

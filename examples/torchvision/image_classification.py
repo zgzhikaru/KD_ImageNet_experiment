@@ -61,11 +61,20 @@ def train_one_epoch(training_box, device, epoch, log_freq):
     for sample_batch, targets, supp_dict in \
             metric_logger.log_every(training_box.train_data_loader, log_freq, header):
         start_time = time.time()
+
         sample_batch, targets = sample_batch.to(device), targets.to(device)
-        loss = training_box.forward_process(sample_batch, targets, supp_dict)
+        #loss = training_box.forward_process(sample_batch, targets, supp_dict)
+        #training_box.post_forward_process(loss=loss)
+        loss_dict = training_box.forward_process(sample_batch, targets, supp_dict)
+        loss = loss_dict['total_loss']
+        del loss_dict['total_loss']
         training_box.post_forward_process(loss=loss)
+        
+
+        metric_logger.update(total_loss=loss.item(), lr=training_box.optimizer.param_groups[0]['lr'])
+        metric_logger.update(**loss_dict)
+
         batch_size = sample_batch.shape[0]
-        metric_logger.update(loss=loss.item(), lr=training_box.optimizer.param_groups[0]['lr'])
         metric_logger.meters['img/s'].update(batch_size / (time.time() - start_time))
         if (torch.isnan(loss) or torch.isinf(loss)) and is_main_process():
             raise ValueError('The training loop was broken due to loss = {}'.format(loss))
