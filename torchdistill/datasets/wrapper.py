@@ -124,12 +124,14 @@ class CRDDatasetWrapper(BaseDatasetWrapper):
             pos_idx = pos_idx[0]
         else:
             raise NotImplementedError(self.mode)
-
+        """
         replace = True if self.num_negative_samples > len(self.cls_negatives[target]) else False
         neg_idx = np.random.choice(self.cls_negatives[target], self.num_negative_samples, replace=replace)
         contrast_idx = np.hstack((np.asarray([pos_idx]), neg_idx))
-        supp_dict['pos_idx'] = index
         supp_dict['contrast_idx'] = contrast_idx
+        """
+        supp_dict['pos_idx'] = index
+        
         return sample, target, supp_dict
 
 
